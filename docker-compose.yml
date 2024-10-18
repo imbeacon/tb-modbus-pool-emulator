@@ -1,0 +1,17 @@
+version: '3.4'
+services:
+  # ThingsBoard IoT Gateway Service Configuration
+  tb-gateway:
+    image: thingsboard/tb-gateway:latest
+    container_name: tb-gateway
+    restart: always
+
+    # Necessary mapping for Linux
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Environment variables
+    environment:
+      - host=host.docker.internal
+      - port=1883
+      - accessToken=YOUR_ACCESS_TOKEN
