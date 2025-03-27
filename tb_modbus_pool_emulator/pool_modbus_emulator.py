@@ -538,7 +538,7 @@ async def set_pump_vibration(pool_system_state):
         await asyncio.sleep(1800 + random.randint(-600, 600))
         if pool_system_state.pump_running:
             pool_system_state.last_abnormal_vibration_update_time = monotonic()
-            pool_system_state.devices["pump"].setValues(6, 2, [abs(random.uniform(5, 7))])
+            pool_system_state.devices["pump"].setValues(6, 2, [abs(random.randint(5, 7))])
 
 # Function to set heat pump vibration to trigger alarm
 async def set_heat_pump_vibration(pool_system_state):
@@ -546,7 +546,7 @@ async def set_heat_pump_vibration(pool_system_state):
         await asyncio.sleep(1800 + random.randint(-600, 600))
         if pool_system_state.heating_system_enabled:
             pool_system_state.last_abnormal_vibration_update_time = monotonic()
-            pool_system_state.devices["heating_system"].setValues(6, 2, [abs(random.uniform(5, 7))])
+            pool_system_state.devices["heating_system"].setValues(6, 2, [abs(random.randint(5, 7))])
 
 # Function to start each server
 async def start_server(port, context):
