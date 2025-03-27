@@ -349,14 +349,14 @@ class PoolSystemState:
         # Update pH level
         self.target_ph_level = random.randint(50, 90)
         self.current_ph_level = smooth_transition(self.current_ph_level, self.target_ph_level, step=1)
-        self.devices["filter_ph_sensor"].setValues(6, 0, [int(self.current_ph_level)])
+        self.devices["filter_ph_sensor"].setValues(6, 0, [abs(int(self.current_ph_level))])
 
         # Update filter rotation speed
         if self.filter_rotation_speed == self.target_filter_rotation_speed:
             self.target_filter_rotation_speed = random.randint(700, 2600)
         filter_rotation_speed = smooth_transition(self.filter_rotation_speed, self.target_filter_rotation_speed,
                                                   step=10)
-        self.devices["sand_filter"].setValues(6, 3, [int(filter_rotation_speed)])
+        self.devices["sand_filter"].setValues(6, 3, [abs(int(filter_rotation_speed))])
         self.devices["sand_filter"].setValues(6, 6, [random.randint(0, 2) if self.sand_filter_mode != SandFilterMode.CLOSED.value else 0])
 
         # Update heat pump rotation speed
@@ -364,12 +364,12 @@ class PoolSystemState:
             self.target_heat_pump_rotation_speed = random.randint(50, 199)
         heat_pump_rotation_speed = smooth_transition(self.heat_pump_rotation_speed,
                                                      self.target_heat_pump_rotation_speed, step=5)
-        self.devices["heating_system"].setValues(6, 5, [int(heat_pump_rotation_speed) if self.heating_system_enabled else 0])
+        self.devices["heating_system"].setValues(6, 5, [abs(int(heat_pump_rotation_speed)) if self.heating_system_enabled else 0])
         self.devices["heating_system"].setValues(6, 8, [random.randint(2, 3) if self.heating_system_enabled else 0]) # refrigerant pressure
-        self.devices["heating_system"].setValues(6, 4, [int(self.ambient_temperature * 10 + random.randint(-5, 5))])
+        self.devices["heating_system"].setValues(6, 4, [abs(int(self.ambient_temperature * 10 + random.randint(-5, 5)))])
         if self.last_abnormal_vibration_update_time == 0 or monotonic() - self.last_abnormal_vibration_update_time > 10:
-            self.devices["heating_system"].setValues(6, 7, [random.randint(0, 2) if self.heating_system_enabled else 0])
-            self.devices["pump"].setValues(6, 2, [random.randint(0, 2) if self.pump_running else 0])
+            self.devices["heating_system"].setValues(6, 7, [abs(random.randint(0, 2)) if self.heating_system_enabled else 0])
+            self.devices["pump"].setValues(6, 2, [abs(random.randint(0, 2)) if self.pump_running else 0])
 
     def get_devices_state(self):
         self.main_valve_opened = self.devices["main_valve"].getValues(1, 0, count=1)[0]
@@ -395,22 +395,22 @@ class PoolSystemState:
 
     def update_device_values(self, adjusted_pressure):
         flow_rate_to_save = max(0, int(self.flow_rate + random.randint(-10, 10) - 10))
-        self.devices["water_meter"].setValues(6, 0, [int(self.current_water_meter)])  # Update water level
-        self.devices["pump"].setValues(6, 1, [flow_rate_to_save])  # Update flow rate in L/min
-        self.devices["pump"].setValues(6, 3, [int(self.pump_temperature * 10)])  # Update temperature in °C
-        self.devices["pump"].setValues(6, 4, [int(self.pump_power_consumption)])  # Update power consumption in W
-        self.devices["pump"].setValues(6, 5, [int(self.pump_rotation_speed)])  # Update rotation speed
-        self.devices["pump"].setValues(6, 6, [int(self.pump_pressure)])  # Update pump pressure
-        self.devices["sand_filter"].setValues(6, 0, [flow_rate_to_save])  # Update flow rate in sand filter
-        self.devices["sand_filter"].setValues(6, 1, [int(self.sand_filter_mode)])  # Update state in sand filter
-        self.devices["sand_filter"].setValues(6, 5, [int(adjusted_pressure)])  # Update pressure in selected units
+        self.devices["water_meter"].setValues(6, 0, [abs(int(self.current_water_meter))])  # Update water level
+        self.devices["pump"].setValues(6, 1, [abs(flow_rate_to_save)])  # Update flow rate in L/min
+        self.devices["pump"].setValues(6, 3, [abs(int(self.pump_temperature * 10))])  # Update temperature in °C
+        self.devices["pump"].setValues(6, 4, [abs(int(self.pump_power_consumption))])  # Update power consumption in W
+        self.devices["pump"].setValues(6, 5, [abs(int(self.pump_rotation_speed))])  # Update rotation speed
+        self.devices["pump"].setValues(6, 6, [abs(int(self.pump_pressure))])  # Update pump pressure
+        self.devices["sand_filter"].setValues(6, 0, [abs(flow_rate_to_save)])  # Update flow rate in sand filter
+        self.devices["sand_filter"].setValues(6, 1, [abs(int(self.sand_filter_mode))])  # Update state in sand filter
+        self.devices["sand_filter"].setValues(6, 5, [abs(int(adjusted_pressure))])  # Update pressure in selected units
         self.devices["heating_system"].setValues(6, 1,
-                                                 [int(self.current_in_temperature * 10)])  # Update currentInTemperature
+                                                 [abs(int(self.current_in_temperature * 10))])  # Update currentInTemperature
         self.devices["heating_system"].setValues(6, 2, [
-            int(self.current_out_temperature * 10)])  # Update currentOutTemperature
+            abs(int(self.current_out_temperature * 10))])  # Update currentOutTemperature
         self.devices["heating_system"].setValues(6, 6, [
-            int(self.compressor_temperature * 10)])  # Update compressor temperature
-        self.devices["heating_system"].setValues(6, 3, [int(self.heat_pump_power_consumption)])  # Update heat pump power consumption
+            abs(int(self.compressor_temperature * 10))])  # Update compressor temperature
+        self.devices["heating_system"].setValues(6, 3, [abs(int(self.heat_pump_power_consumption))])  # Update heat pump power consumption
 
         self.update_random_values()
 
@@ -493,6 +493,7 @@ async def update_values(pool_system_state, running_event):
                 f"Pump Temperature: {pool_system_state.pump_temperature}, "
                 f"Pump Power Consumption: {pool_system_state.pump_power_consumption}, "
                 f"Pump Rotation Speed: {pool_system_state.pump_rotation_speed}")
+            logging.info(f"Pump vibration: {pool_system_state.devices['pump'].getValues(6, 2, count=1)[0]}")
             logging.info(
                 f"Compressor Temperature: {pool_system_state.compressor_temperature}, "
                 f"Flow Rate: {pool_system_state.flow_rate}, "
@@ -537,7 +538,7 @@ async def set_pump_vibration(pool_system_state):
         await asyncio.sleep(1800 + random.randint(-600, 600))
         if pool_system_state.pump_running:
             pool_system_state.last_abnormal_vibration_update_time = monotonic()
-            pool_system_state.devices["pump"].setValues(6, 2, [random.uniform(5, 7)])
+            pool_system_state.devices["pump"].setValues(6, 2, [abs(random.uniform(5, 7))])
 
 # Function to set heat pump vibration to trigger alarm
 async def set_heat_pump_vibration(pool_system_state):
@@ -545,7 +546,7 @@ async def set_heat_pump_vibration(pool_system_state):
         await asyncio.sleep(1800 + random.randint(-600, 600))
         if pool_system_state.heating_system_enabled:
             pool_system_state.last_abnormal_vibration_update_time = monotonic()
-            pool_system_state.devices["heating_system"].setValues(6, 2, [random.uniform(5, 7)])
+            pool_system_state.devices["heating_system"].setValues(6, 2, [abs(random.uniform(5, 7))])
 
 # Function to start each server
 async def start_server(port, context):
@@ -570,6 +571,7 @@ identity.MajorMinorRevision = '1.0'
 
 # Run the servers and value updates
 if __name__ == "__main__":
+    logging.info("Starting Pool System Emulator")
     loop = asyncio.get_event_loop()
     running = asyncio.Event()
     running.set()
