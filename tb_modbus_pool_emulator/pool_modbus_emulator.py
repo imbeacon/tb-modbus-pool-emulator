@@ -15,7 +15,15 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # Pool System State
 class PoolSystemState:
+    RESET_EVENT = asyncio.Event()
     def __init__(self):
+        self.init_default_state()
+
+        self.devices = {}
+        self.device_contexts = {}
+        self.init_devices()
+
+    def init_default_state(self):
         # System configurations
         self.main_max_flow_rate = 200
         self.full_pool_volume = 55000  # liters
@@ -71,10 +79,6 @@ class PoolSystemState:
         self.calculate_water_reaches_pool()
         self.calculate_flow_rate()
         self.calculate_water_can_be_heated()
-
-        self.devices = {}
-        self.device_contexts = {}
-        self.init_devices()
 
     def calculate_water_reaches_pool(self):
         self.water_reaches_pool = (self.pump_out_valve_opened and self.pool_intake_valve_opened
@@ -414,6 +418,27 @@ class PoolSystemState:
 
         self.update_random_values()
 
+    def check_reset_value(self):
+        if self.devices["water_meter"].getValues(1, 0, count=1)[0]:
+            logging.info("Pool resetting...")
+            self.RESET_EVENT.set()
+            self.devices["water_meter"].setValues(1, 0, [0])
+            self.init_default_state()
+            self.devices["pump"].setValues(1, 0, [self.pump_running])
+            self.devices["pump_out_valve"].setValues(1, 0, [self.pump_out_valve_opened])
+            self.devices["pool_drain_valve"].setValues(1, 0, [self.pool_drain_valve_opened])
+            self.devices["drain_valve"].setValues(1, 0, [self.drain_valve_opened])
+            self.devices["pool_intake_valve"].setValues(1, 0, [self.pool_intake_valve_opened])
+            self.devices["heating_income_valve"].setValues(1, 0, [self.heating_income_valve_opened])
+            self.devices["heating_outgoing_valve"].setValues(1, 0, [self.heating_outgoing_valve_opened])
+            self.devices["throughpass_valve"].setValues(1, 0, [self.throughpass_valve_opened])
+            self.devices["heating_system"].setValues(1, 0, [self.heating_system_enabled])
+            self.devices["weir_valve"].setValues(1, 0, [self.weir_valve_opened])
+            self.devices["main_valve"].setValues(1, 0, [self.main_valve_opened])
+            self.update_device_values(self.current_pressure)
+            self.RESET_EVENT.clear()
+            logging.info("Pool was reset.")
+
 
 # Enum for Sand Filter Modes
 class SandFilterMode(Enum):
@@ -455,77 +480,81 @@ def convert_pressure(pressure, units):
 async def update_values(pool_system_state, running_event):
     while running_event.is_set():
         try:
-            # Get device states
-            pool_system_state.get_devices_state()
+            if not pool_system_state.RESET_EVENT.is_set():
+                # Get device states
+                pool_system_state.get_devices_state()
 
-            pool_system_state.low_water_level = pool_system_state.current_water_meter < 20
+                pool_system_state.low_water_level = pool_system_state.current_water_meter < 20
 
-            # Handle pump logic
-            pool_system_state.handle_pump_logic()
-            pool_system_state.calculate_water_reaches_pool()
-            pool_system_state.update_water_level()
-            pool_system_state.calculate_water_can_be_heated()
+                # Handle pump logic
+                pool_system_state.handle_pump_logic()
+                pool_system_state.calculate_water_reaches_pool()
+                pool_system_state.update_water_level()
+                pool_system_state.calculate_water_can_be_heated()
 
-            # Handle compressor temperature
-            pool_system_state.handle_compressor_temperature()
+                # Handle compressor temperature
+                pool_system_state.handle_compressor_temperature()
 
-            # Handle heat pump power consumption
-            pool_system_state.handle_heat_pump_power_consumption()
+                # Handle heat pump power consumption
+                pool_system_state.handle_heat_pump_power_consumption()
 
-            # Adjust temperatures
-            pool_system_state.handle_pool_temperatures()
+                # Adjust temperatures
+                pool_system_state.handle_pool_temperatures()
 
-            # Convert pressure to the selected units
-            adjusted_pressure = convert_pressure(pool_system_state.current_pressure, pool_system_state.pressure_units)
+                # Convert pressure to the selected units
+                adjusted_pressure = convert_pressure(pool_system_state.current_pressure, pool_system_state.pressure_units)
 
-            # Calculate flow rate
-            pool_system_state.calculate_flow_rate()
+                # Calculate flow rate
+                pool_system_state.calculate_flow_rate()
 
-            # Update telemetry values
-            pool_system_state.update_device_values(adjusted_pressure)
+                # Update telemetry values
+                pool_system_state.update_device_values(adjusted_pressure)
 
-            # Log updated parameters
-            logging.info(
-                f"Main Valve Opened: {pool_system_state.main_valve_opened}, "
-                f"Pump Running: {pool_system_state.pump_running}, "
-                f"Pump Out Valve Opened: {pool_system_state.pump_out_valve_opened}")
-            logging.info(
-                f"Pump Temperature: {pool_system_state.pump_temperature}, "
-                f"Pump Power Consumption: {pool_system_state.pump_power_consumption}, "
-                f"Pump Rotation Speed: {pool_system_state.pump_rotation_speed}")
-            logging.info(f"Pump vibration: {pool_system_state.devices['pump'].getValues(6, 2, count=1)[0]}")
-            logging.info(
-                f"Compressor Temperature: {pool_system_state.compressor_temperature}, "
-                f"Flow Rate: {pool_system_state.flow_rate}, "
-                f"Water Level: {pool_system_state.current_water_meter}")
-            logging.info(
-                f"Sand Filter Mode: {pool_system_state.sand_filter_mode}, "
-                f"Filter Rotation Speed: {pool_system_state.filter_rotation_speed}, "
-                f"Pressure: {adjusted_pressure}, "
-                f"Pump Pressure: {pool_system_state.pump_pressure}")
-            logging.info(
-                f"Current In Temperature: {pool_system_state.current_in_temperature}, "
-                f"Current Out Temperature: {pool_system_state.current_out_temperature}")
-            logging.info(f"Target temperature: {pool_system_state.target_temperature}, "
-                         f"Ambient temperature: {pool_system_state.ambient_temperature}")
-            logging.info(
-                f"Heating System Enabled: {pool_system_state.heating_system_enabled}, "
-                f"Low Water Level: {pool_system_state.low_water_level}, "
-                f"Pool Drain Valve Opened: {pool_system_state.pool_drain_valve_opened}")
-            logging.info(
-                f"Drain Valve Opened: {pool_system_state.drain_valve_opened}, "
-                f"Throughpass Valve Opened: {pool_system_state.throughpass_valve_opened}, "
-                f"Heating Income Valve Opened: {pool_system_state.heating_income_valve_opened}")
-            logging.info(
-                f"Heating Outgoing Valve Opened: {pool_system_state.heating_outgoing_valve_opened}, "
-                f"Pool Intake Valve Opened: {pool_system_state.pool_intake_valve_opened}, "
-                f"Weir Valve Opened: {pool_system_state.weir_valve_opened}")
-            logging.info("Heating System power consumption: " + str(pool_system_state.heat_pump_power_consumption))
-            logging.info("Heating System rotation speed: " + str(pool_system_state.heat_pump_rotation_speed))
-            logging.info("Sand filter vibration: " + str(pool_system_state.devices["sand_filter"].getValues(6, 6, count=1)[0]))
-            logging.info("")
+                # Check is the pool state reset
+                pool_system_state.check_reset_value()
 
-            await asyncio.sleep(2)
+                # Log updated parameters
+                logging.info(
+                    f"Main Valve Opened: {pool_system_state.main_valve_opened}, "
+                    f"Pump Running: {pool_system_state.pump_running}, "
+                    f"Pump Out Valve Opened: {pool_system_state.pump_out_valve_opened}")
+                logging.info(
+                    f"Pump Temperature: {pool_system_state.pump_temperature}, "
+                    f"Pump Power Consumption: {pool_system_state.pump_power_consumption}, "
+                    f"Pump Rotation Speed: {pool_system_state.pump_rotation_speed}")
+                logging.info(f"Pump vibration: {pool_system_state.devices['pump'].getValues(6, 2, count=1)[0]}")
+                logging.info(
+                    f"Compressor Temperature: {pool_system_state.compressor_temperature}, "
+                    f"Flow Rate: {pool_system_state.flow_rate}, "
+                    f"Water Level: {pool_system_state.current_water_meter}")
+                logging.info(
+                    f"Sand Filter Mode: {pool_system_state.sand_filter_mode}, "
+                    f"Filter Rotation Speed: {pool_system_state.filter_rotation_speed}, "
+                    f"Pressure: {adjusted_pressure}, "
+                    f"Pump Pressure: {pool_system_state.pump_pressure}")
+                logging.info(
+                    f"Current In Temperature: {pool_system_state.current_in_temperature}, "
+                    f"Current Out Temperature: {pool_system_state.current_out_temperature}")
+                logging.info(f"Target temperature: {pool_system_state.target_temperature}, "
+                             f"Ambient temperature: {pool_system_state.ambient_temperature}")
+                logging.info(
+                    f"Heating System Enabled: {pool_system_state.heating_system_enabled}, "
+                    f"Low Water Level: {pool_system_state.low_water_level}, "
+                    f"Pool Drain Valve Opened: {pool_system_state.pool_drain_valve_opened}")
+                logging.info(
+                    f"Drain Valve Opened: {pool_system_state.drain_valve_opened}, "
+                    f"Throughpass Valve Opened: {pool_system_state.throughpass_valve_opened}, "
+                    f"Heating Income Valve Opened: {pool_system_state.heating_income_valve_opened}")
+                logging.info(
+                    f"Heating Outgoing Valve Opened: {pool_system_state.heating_outgoing_valve_opened}, "
+                    f"Pool Intake Valve Opened: {pool_system_state.pool_intake_valve_opened}, "
+                    f"Weir Valve Opened: {pool_system_state.weir_valve_opened}")
+                logging.info("Heating System power consumption: " + str(pool_system_state.heat_pump_power_consumption))
+                logging.info("Heating System rotation speed: " + str(pool_system_state.heat_pump_rotation_speed))
+                logging.info("Sand filter vibration: " + str(pool_system_state.devices["sand_filter"].getValues(6, 6, count=1)[0]))
+                logging.info("")
+
+                await asyncio.sleep(2)
 
         except Exception as e:
             logging.error(f"Error during update: {str(e)}")
@@ -536,6 +565,8 @@ async def update_values(pool_system_state, running_event):
 async def set_pump_vibration(pool_system_state):
     while True:
         await asyncio.sleep(1800 + random.randint(-600, 600))
+        if pool_system_state.RESET_EVENT.is_set():
+            await asyncio.sleep(5)
         if pool_system_state.pump_running:
             pool_system_state.last_abnormal_vibration_update_time = monotonic()
             pool_system_state.devices["pump"].setValues(6, 2, [abs(random.randint(5, 7))])
@@ -544,6 +575,8 @@ async def set_pump_vibration(pool_system_state):
 async def set_heat_pump_vibration(pool_system_state):
     while True:
         await asyncio.sleep(1800 + random.randint(-600, 600))
+        if pool_system_state.RESET_EVENT.is_set():
+            await asyncio.sleep(5)
         if pool_system_state.heating_system_enabled:
             pool_system_state.last_abnormal_vibration_update_time = monotonic()
             pool_system_state.devices["heating_system"].setValues(6, 2, [abs(random.randint(5, 7))])
